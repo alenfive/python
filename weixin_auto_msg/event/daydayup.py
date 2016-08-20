@@ -1,11 +1,13 @@
 
-import http.client
+import requests
 from PIL import Image,ImageTk
 import threading
 import io
 import base64
 import xml.etree.ElementTree as Etree
 import json
+import shutil
+import time
 
 #HTTPClient实例
 class HttpClient:
@@ -13,6 +15,35 @@ class HttpClient:
 
     def get_http(self):
         return self.http
+
+
+class SyncCheckThread(threading.Thread):
+
+    session = None
+
+    def __init__(self,session):
+        self.session = session
+
+
+    def run(self):
+        print("start sync check ...")
+        #https: // webpush.wx2.qq.com / cgi - bin / mmwebwx - bin / synccheck?r = 1471491463975 & skey = % 40
+        #crypt_fd882096_c470f01075e20985876407f1b2d0f441 & sid = IJOXOVSUgZtM1RRA & uin = 2947382904 & deviceid = e376640352862852 & synckey = 1
+        #_650517214 % 7
+        #C2_650517828 % 7
+        #C3_650517782 % 7
+        #C11_650517809 % 7
+        #C13_650466158 % 7
+        #C201_1471491461 % 7
+        #C203_1471484329 % 7
+        #C1000_1471480381 % 7
+        #C1001_1471480412 % 7
+        #C1004_1471314833 & _ = 1471491460322
+
+        #while True:
+         #url = "https://webpush.wx2.qq.com/cgi-bin/mmwebwx-bin/synccheck?r=1471491463975&skey=" + TicketInfo.skey + "&sid="+TicketInfo.wxsid+"&uin="+TicketInfo.wxuin
+
+
 
 
 class CheckScanThread(threading.Thread):
@@ -27,19 +58,18 @@ class CheckScanThread(threading.Thread):
         print("scan...")
         while True:
             data = self.qrcode.checkScan()
-            arr = str(data).split("\'")
-            if arr[1] == 'window.code=408;':
+            if data == 'window.code=408;':
                 continue
 
-            print(arr)
-            headStr = arr[1].replace("data:img/jpg;base64,","")
-            print(headStr)
+            headStr = data.split("\'")[1].replace("data:img/jpg;base64,","")
 
             imgdata = base64.b64decode(headStr)
             file = open('/home/freedom/head.jpg', 'wb')
             file.write(imgdata)
+            file.flush()
+            file.close()
 
-            img = Image.open(r'/home/freedom/head.jpg')
+            img = Image.open('/home/freedom/head.jpg',mode="r")
             background_image = ImageTk.PhotoImage(img)
 
             self.label.config(image=background_image)
@@ -48,7 +78,7 @@ class CheckScanThread(threading.Thread):
 
         self.state.config(text="扫描成功，请确认")
         print("confim...")
-        dothing = Dothing()
+        dothing = Dothing(self.qrcode.session)
         ticket_url = None
         while True:
             data = self.qrcode.checkConfim()
@@ -68,7 +98,6 @@ class CheckScanThread(threading.Thread):
         dothing.webwxinit()
         dothing.getConcat()
 
-
 class TicketInfo:
     skey = None
     wxsid = None
@@ -76,142 +105,116 @@ class TicketInfo:
     wxuin = None
     isgrayscale = None
 
-class ConnPool:
-    wx2_conn = None
-    wx_conn = None
-    wx2_qq_conn = None
+class Webwxinit:
+    jsonData = None
 
-    @staticmethod
-    def clear(self):
-        ConnPool.wx2_qq_conn = None
-        ConnPool.wx_conn = None
-        ConnPool.wx2_conn = None
+class Concat:
+    jsonData = None
 
 class Dothing:
-    __wx2_qq_url = "https://wx2.qq.com"
     wx2_qq_conn = None
+    session = None
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.110 Safari/537.36"}
 
-    def __init__(self):
-        if ConnPool.wx2_qq_conn == None:
-            ConnPool.wx2_qq_conn = http.client.HTTPSConnection('wx2.qq.com', 443)
-        self.wx2_qq_conn = ConnPool.wx2_qq_conn
+    def __init__(self,session):
+        self.session = session
 
     def checkTicket(self,ticket_url):
-        uri = ticket_url.replace(self.__wx2_qq_url,"")
-        print("check ticket...", self.__wx2_qq_url + uri)
-        self.wx2_qq_conn.request("GET",uri)
-        r1 = self.wx2_qq_conn.getresponse()
-        data = str(r1.read(),'utf-8')
+        print("GET", ticket_url)
+        r = self.session.get(ticket_url, headers=self.headers, allow_redirects = False)
+        print("result",r.text)
 
-        print("result:",data)
-        print("head:",r1.getheaders())
-
-        if data.find("pass_ticket") == -1:
+        if r.text.find("pass_ticket") == -1:
+            time.sleep(5)
             self.checkTicket(ticket_url)
             return
 
-        notify_data_tree = Etree.fromstring(data)
+        notify_data_tree = Etree.fromstring(r.text)
         TicketInfo.skey = notify_data_tree.find("skey").text
         TicketInfo.isgrayscale = notify_data_tree.find("isgrayscale").text
+        TicketInfo.pass_ticket = notify_data_tree.find("pass_ticket").text
         TicketInfo.wxsid = notify_data_tree.find("wxsid").text
         TicketInfo.wxuin = notify_data_tree.find("wxuin").text
-        TicketInfo.pass_ticket = notify_data_tree.find("pass_ticket").text
+
+
 
     def webwxinit(self):
-        uri = "/cgi-bin/mmwebwx-bin/webwxinit?r=2101655714&lang=zh_CN&pass_ticket="+TicketInfo.pass_ticket
-        print("POST request", self.__wx2_qq_url + uri)
+        url = "https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxinit?r=1860846903&pass_ticket="+TicketInfo.pass_ticket
+        print("POST request",url)
 
         headers = {"Content-type": "application/json;charset=UTF-8"}
+        headers.update(self.headers)
         params = {"BaseRequest":{"Uin":TicketInfo.wxuin,"Sid":TicketInfo.wxsid}}
         print(params)
-        self.wx2_qq_conn.request("POST", uri, json.JSONEncoder().encode(params),headers)
-        r1 = self.wx2_qq_conn.getresponse()
-        data = str(r1.read(), 'utf-8')
-        print(data)
+        r = self.session.post(url, headers=headers,data = json.JSONEncoder().encode(params))
+        r.encoding = "utf-8"
+        Webwxinit.jsonData = r.json()
+        print("result",r.text)
+
 
     def getConcat(self):
-        #https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxgetcontact?r=1471228115491&seq=0&skey=@crypt_fd882096_e8bd8df96281b5dabd75bce72d14e9cd
-        uri ="/cgi-bin/mmwebwx-bin/webwxgetcontact?r=1471228115491&seq=0&skey="+TicketInfo.skey
-        print("GET request", self.__wx2_qq_url + uri)
-        self.wx2_qq_conn.request("GET", uri)
-        r1 = self.wx2_qq_conn.getresponse()
-        data = str(r1.read(), 'utf-8')
-        print(r1.getheaders)
-        print(data)
+        url ="https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxgetcontact?r=1471228115491&seq=0&skey="+TicketInfo.skey+"&pass_ticket="+TicketInfo.pass_ticket
+        print("GET", url)
+        r = self.session.get(url, headers=self.headers)
+        r.encoding = "utf-8"
+        Concat.jsonData = r.json()
+        #print(r.json()['MemberList'][0]['NickName'])
+        print(r.text)
+
 
 #验证码
 class QRCode:
 
     uuid = None
-    __wx2_url = "https://login.wx2.qq.com"
-    __wx_url = "https://login.wx.qq.com"
-    wx2_conn = None
-    wx_conn = None
+    headers = {"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.110 Safari/537.36"}
+    session = None
 
-    def __init__(self):
-        if ConnPool.wx2_conn == None:
-            ConnPool.wx2_conn = http.client.HTTPSConnection('login.wx2.qq.com', 443)
-        if ConnPool.wx_conn == None:
-            ConnPool.wx_conn = http.client.HTTPSConnection('login.wx.qq.com', 443)
-
-        self.wx2_conn = ConnPool.wx2_conn
-        self.wx_conn =  ConnPool.wx_conn
+    def __init__(self,session):
+        self.session = session
 
     def getUuid(self):
         if self.uuid == None:
-            uri = "/jslogin?appid=wx782c26e4c19acffb&redirect_uri=https%3A%2F%2Fwx2.qq.com%2Fcgi-bin%2Fmmwebwx-bin%2Fwebwxnewloginpage&fun=new&lang=zh_CN&_=1470879353086"
-            print("GET request :",self.__wx2_url + uri)
-            self.wx2_conn.request("GET",uri)
-            r1 = self.wx2_conn.getresponse()
-            data = r1.read()
-            print(str(data))
-            self.uuid = str(data).split("\"")[1]
+            url = "https://login.wx2.qq.com/jslogin?appid=wx782c26e4c19acffb&redirect_uri=https%3A%2F%2Fwx2.qq.com%2Fcgi-bin%2Fmmwebwx-bin%2Fwebwxnewloginpage&fun=new&lang=zh_CN&_=1470879353086"
+            print("GET request :",url)
+            r = self.session.get(url,headers = self.headers)
+            print(r.text)
+            self.uuid = r.text.split("\"")[1]
         return self.uuid
 
     def getCodeImg(self):
         uuid = self.getUuid()
-        uri = "/qrcode/"+uuid
-        print("GET request :", self.__wx2_url + uri)
-        self.wx2_conn.request("GET",uri)
-        r1 = self.wx2_conn.getresponse()
-        data = r1.read()
-        return data
+        url = "https://login.wx2.qq.com/qrcode/"+uuid
+        print("GET request :", url)
+        r = self.session.get(url,headers = self.headers,stream = True)
+        path = "/home/freedom/qcode.jpg"
+        with open(path,'wb') as f:
+            r.raw.decode_content = True
+            shutil.copyfileobj(r.raw,f)
+
+        return path
 
     def checkScan(self):
-        uri = "/cgi-bin/mmwebwx-bin/login?loginicon=true&uuid=" + self.getUuid() +"&tip=0&r=-2110777326&_=1470989564469"
-        print("GET request :", self.__wx2_url + uri)
-        self.wx2_conn.request("GET", uri)
-        r1 = self.wx2_conn.getresponse()
-        data = r1.read()
-        print(data)
-        return data
+        url = "https://login.wx2.qq.com/cgi-bin/mmwebwx-bin/login?loginicon=true&uuid=" + self.getUuid() +"&tip=0&r=-2110777326&_=1470989564469"
+        print("GET request :", url)
+        r = self.session.get(url, headers=self.headers)
+        print(r.text)
+        return r.text
 
     def checkConfim(self):
-        uri = "/cgi-bin/mmwebwx-bin/login?loginicon=true&uuid=" + self.getUuid() + "&tip=0&r=-2110777326&_=1470989564469"
-        print("GET request :", self.__wx_url + uri)
-        self.wx_conn.request("GET", uri)
-        r1 = self.wx_conn.getresponse()
-        data = str(r1.read(),"utf-8")
-        print(data)
-        return data
-
-
-
-def main():
-    QRCode().getCodeImg()
+        url = "https://login.wx.qq.com/cgi-bin/mmwebwx-bin/login?loginicon=true&uuid=" + self.getUuid() + "&tip=0&r=-2110777326&_=1470989564469"
+        print("GET request :", url)
+        r = self.session.get(url, headers=self.headers)
+        print(r.text)
+        return r.text
 
 
 def start(label,state):
-    ConnPool.wx2_qq_conn = None
-    ConnPool.wx_conn = None
-    ConnPool.wx2_conn = None
 
-    qrcode = QRCode()
-    f = open("/home/freedom/qcode.jpg", "wb")
-    f.write(qrcode.getCodeImg())
-    f.flush()
-    f.close()
-    img = Image.open(r"/home/freedom/qcode.jpg")
+
+    session = requests.session()
+    qrcode = QRCode(session)
+    path = qrcode.getCodeImg()
+    img = Image.open(path,mode="r")
     background_image = ImageTk.PhotoImage(img)
 
     label.config(image=background_image)
@@ -219,9 +222,11 @@ def start(label,state):
 
     state.config(text="等待手机扫描中...")
 
-
-
     check = CheckScanThread(qrcode,label,state)
     check.setDaemon(label)
     check.start()
     print("start...")
+    check.join()
+
+    print("SyncCheckThread ..")
+    SyncCheckThread(session).start()
