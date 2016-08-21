@@ -10,12 +10,6 @@ import time
 from datetime import datetime, timedelta
 import sys
 
-#HTTPClient实例
-class HttpClient:
-    http = None
-
-    def get_http(self):
-        return self.http
 
 class TimerSendMsg(threading.Thread):
     headers = {
