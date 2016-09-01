@@ -22,6 +22,7 @@ class TimerSendMsg(threading.Thread):
 
     def sendxiaoxiao(self,msgcore):
         curTime = datetime.now()
+        curTime = curTime.replace(microsecond=0)
         desTime = curTime.replace(hour=5, minute=20, second=0, microsecond=0)
         delta = curTime - desTime
         if abs(delta.total_seconds()) < 60 * 5:
@@ -30,18 +31,28 @@ class TimerSendMsg(threading.Thread):
     def guoshengtainfeng(self,msgcore):
 
         curTime = datetime.now()
-        desTime = curTime.replace(hour=6, minute=50, second=0, microsecond=0)
+        curTime = curTime.replace(microsecond=0)
+        desTime = curTime.replace(hour=5, minute=30, second=0, microsecond=0)
         delta = curTime - desTime
         if abs(delta.total_seconds()) < 60 * 5:
             from weixin_auto_msg.func.msgFile import MsgFile
-            msgcore.sendmsg(Webwxinit.jsonData['User'], msgcore.finduserByNickname("国盛天丰"), MsgFile().getOneMsg() + "--《one day one》")
+            msgcore.sendmsg(Webwxinit.jsonData['User'], msgcore.finduserByNickname("国盛天丰"), MsgFile().getOneMsg() + "--《一日一则 共勉》")
+
+    def sendmama(self,msgcore):
+        curTime = datetime.now()
+        curTime = curTime.replace(microsecond=0)
+        desTime = curTime.replace(hour=7, minute=50, second=0, microsecond=0)
+        delta = curTime - desTime
+        if abs(delta.total_seconds()) < 60 * 5:
+            msgcore.sendmsg(Webwxinit.jsonData['User'], msgcore.finduserByNickname("春琴"), "妈妈早上好")
 
     def run(self):
         msgcore = MsgCore(self.session)
         while True:
             self.sendxiaoxiao(msgcore)
             self.guoshengtainfeng(msgcore)
-            time.sleep(60*(5*2-1))
+            self.sendmama(msgcore)
+            time.sleep(60*10)
 
 class SyncCheckThread(threading.Thread):
     headers = {
@@ -86,6 +97,7 @@ class SyncCheckThread(threading.Thread):
 
                 sendUserList = []
                 for msg in syncResult.json()['AddMsgList']:
+
                     if msg['FromUserName'] == Webwxinit.jsonData['User']['UserName']:
                         if msg['Content'] == "#autoreply=true#":
                             SyncCheckThread.autoReply = True
@@ -100,7 +112,7 @@ class SyncCheckThread(threading.Thread):
 
                     fromUser = msgcore.finduserByUsername(msg['FromUserName'])
 
-                    if fromUser is None:
+                    if fromUser is None or "isChat" in fromUser.keys():
                         continue
 
                     print("receive from",fromUser['NickName']," Content:",msg['Content'])
@@ -116,7 +128,7 @@ class SyncCheckThread(threading.Thread):
 
                 time.sleep(5)
             except Exception as e:
-                print(e)
+                print("ERROR ",e)
 
         print("已在其他地方登录。断开连接...")
         sys.exit(0)
@@ -276,7 +288,12 @@ class Dothing:
             return
         r = self.session.post(url, headers=headers, data=json.JSONEncoder().encode(params))
         r.encoding = "utf-8"
-        Concat.jsonData['MemberList'].extend(r.json()['ContactList'])
+
+        data = r.json()['ContactList']
+        for item in data:
+            item['isChat'] = "1"
+
+        Concat.jsonData['MemberList'].extend(data)
         #print("result", r.text)
 
     def getConcat(self):

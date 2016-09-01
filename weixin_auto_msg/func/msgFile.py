@@ -1,4 +1,5 @@
 import re
+import os
 
 class MsgFile:
 
@@ -6,8 +7,8 @@ class MsgFile:
     def getOneMsg(self):
         result = None
         writeData = None
-
-        with open("onedaya", mode='r+', encoding='UTF-8') as file:
+        basePath = os.path.split(os.path.realpath(__file__))[0]
+        with open(basePath+"/onedaya", mode='r+', encoding='UTF-8') as file:
             data = file.readlines()
             for index,line in enumerate(data):
                 val = re.search('(?<=G#).*',line)
@@ -24,6 +25,6 @@ class MsgFile:
                 break
 
         if not writeData is None:
-            with open("onedaya", mode='w', encoding='UTF-8') as file:
+            with open(basePath+"/onedaya", mode='w', encoding='UTF-8') as file:
                 file.writelines(writeData)
         return result

@@ -1,0 +1,11 @@
+time#toUser#msgFile#
+2016-03-05 05:30:00     潘建兴      (file=msgFile | msg=祝{{touser.nickname}}生日快乐)
+
+
+{{touser.nickname}} {{fromuser.nickname}}
+
+
+
+{
+    ""
+}
