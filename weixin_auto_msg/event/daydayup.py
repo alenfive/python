@@ -8,6 +8,7 @@ import json
 import shutil
 import time
 from datetime import datetime, timedelta
+import sys
 
 
 class TimerSendMsg(threading.Thread):
@@ -19,97 +20,118 @@ class TimerSendMsg(threading.Thread):
         threading.Thread.__init__(self)
         self.session = session
 
+    def sendxiaoxiao(self,msgcore):
+        curTime = datetime.now()
+        curTime = curTime.replace(microsecond=0)
+        desTime = curTime.replace(hour=5, minute=20, second=0, microsecond=0)
+        delta = curTime - desTime
+        if abs(delta.total_seconds()) < 60 * 5:
+            msgcore.sendmsg(Webwxinit.jsonData['User'], msgcore.finduserByNickname("郑小小"), "早起的虫子开始吃鸟了")
+
+    def guoshengtainfeng(self,msgcore):
+
+        curTime = datetime.now()
+        curTime = curTime.replace(microsecond=0)
+        desTime = curTime.replace(hour=5, minute=30, second=0, microsecond=0)
+        delta = curTime - desTime
+        if abs(delta.total_seconds()) < 60 * 5:
+            from weixin_auto_msg.func.msgFile import MsgFile
+            msgcore.sendmsg(Webwxinit.jsonData['User'], msgcore.finduserByNickname("国盛天丰"), MsgFile().getOneMsg() + "--《一日一则 共勉》")
+
+    def sendmama(self,msgcore):
+        curTime = datetime.now()
+        curTime = curTime.replace(microsecond=0)
+        desTime = curTime.replace(hour=7, minute=50, second=0, microsecond=0)
+        delta = curTime - desTime
+        if abs(delta.total_seconds()) < 60 * 5:
+            msgcore.sendmsg(Webwxinit.jsonData['User'], msgcore.finduserByNickname("春琴"), "妈妈早上好")
+
     def run(self):
         msgcore = MsgCore(self.session)
         while True:
-            curTime = datetime.now()
-            desTime = curTime.replace(hour=5, minute=20, second=0, microsecond=0)
-            delta = curTime - desTime
-            if abs(delta.total_seconds()) < 60*10:
-                msgcore.sendmsg(Webwxinit.jsonData['User'], msgcore.finduserByNickname("郑小小"), "早起的虫子开始吃鸟了")
-                time.sleep(60*10*2)
-                continue
-
-            time.sleep(60)
+            self.sendxiaoxiao(msgcore)
+            self.guoshengtainfeng(msgcore)
+            self.sendmama(msgcore)
+            time.sleep(60*10)
 
 class SyncCheckThread(threading.Thread):
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.110 Safari/537.36"}
     session = None
-
+    autoReply = True
     def __init__(self, session):
         threading.Thread.__init__(self)
         self.session = session
 
     def run(self):
         print("start sync check ...")
-        #https: // webpush.wx2.qq.com / cgi - bin / mmwebwx - bin / synccheck?r = 1471491463975 & skey = % 40
-        #crypt_fd882096_c470f01075e20985876407f1b2d0f441 & sid = IJOXOVSUgZtM1RRA & uin = 2947382904 & deviceid = e376640352862852 & synckey = 1
-        #_650517214 % 7
-        #C2_650517828 % 7
-        #C3_650517782 % 7
-        #C11_650517809 % 7
-        #C13_650466158 % 7
-        #C201_1471491461 % 7
-        #C203_1471484329 % 7
-        #C1000_1471480381 % 7
-        #C1001_1471480412 % 7
-        #C1004_1471314833 & _ = 1471491460322
 
-        #self.sendmsg(Webwxinit.jsonData['User'],self.finduserByNickname("潘建兴"),"在做啥子")
         msgcore = MsgCore(self.session)
         while True:
-            url = "https://webpush.wx2.qq.com/cgi-bin/mmwebwx-bin/synccheck?r=1471491463975&skey="+TicketInfo.skey+"&sid="+TicketInfo.wxsid+"&uin="+TicketInfo.wxuin+"&synckey="
-            for item in Webwxinit.jsonData['SyncKey']['List']:
-                url = url + ""+str(item['Key'])+"_"+str(item['Val'])+"|"
-            print("GET " + url)
-            r = self.session.get(url, headers=self.headers, allow_redirects=False,timeout=60)
-            r.encoding = "utf-8"
-            print(r.text)
-            if r.text.find("retcode:\"0\"") == -1:
-                break
+            try:
+                url = "https://webpush.wx2.qq.com/cgi-bin/mmwebwx-bin/synccheck?r=1471491463975&skey="+TicketInfo.skey+"&sid="+TicketInfo.wxsid+"&uin="+TicketInfo.wxuin+"&synckey="
+                for item in Webwxinit.jsonData['SyncKey']['List']:
+                    url = url + ""+str(item['Key'])+"_"+str(item['Val'])+"|"
+                print("GET " + url)
+                r = self.session.get(url, headers=self.headers, allow_redirects=False,timeout=60)
+                r.encoding = "utf-8"
+                print(r.text)
+                if r.text.find("retcode:\"0\"") == -1:
+                    break
 
-            if r.text.find("selector:\"0\"") != -1:
-                continue
-
-            #https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxsync?sid=VznnR+RhwgnLTued&skey=@crypt_fd882096_f130cf0ca102faafe158aecd5b4b3fa8
-            syncUrl = "https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxsync?sid="+TicketInfo.wxsid+"&skey="+TicketInfo.skey
-            print("POST request", syncUrl)
-
-            headers = {"Content-type": "application/json;charset=UTF-8"}
-            headers.update(self.headers)
-            params = {"BaseRequest": {"Uin": TicketInfo.wxuin, "Sid": TicketInfo.wxsid,"Skey":TicketInfo.skey},"SyncKey":Webwxinit.jsonData['SyncKey']}
-            print(params)
-            syncResult = self.session.post(syncUrl, headers=headers, data=json.JSONEncoder().encode(params),timeout=60)
-            syncResult.encoding = "utf-8"
-            print("result", syncResult.text)
-            Webwxinit.jsonData['SyncKey'] = syncResult.json()['SyncKey']
-
-            sendUserList = []
-            for msg in syncResult.json()['AddMsgList']:
-                if msg['FromUserName'] == Webwxinit.jsonData['User']['UserName']:
-                    continue
-                if msg['ToUserName'] != Webwxinit.jsonData['User']['UserName']:
-                    continue
-                # if msg['MsgType'] != 1:
-                #     continue
-
-                fromUser = msgcore.finduserByUsername(msg['FromUserName'])
-
-                if fromUser is None:
+                if r.text.find("selector:\"0\"") != -1:
                     continue
 
-                print("receive from",fromUser['NickName']," Content:",msg['Content'])
-                sendUserList.append(fromUser)
-                self.appenduser(sendUserList,fromUser)
+                #https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxsync?sid=VznnR+RhwgnLTued&skey=@crypt_fd882096_f130cf0ca102faafe158aecd5b4b3fa8
+                syncUrl = "https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxsync?sid="+TicketInfo.wxsid+"&skey="+TicketInfo.skey
+                print("POST request", syncUrl)
 
+                headers = {"Content-type": "application/json;charset=UTF-8"}
+                headers.update(self.headers)
+                params = {"BaseRequest": {"Uin": TicketInfo.wxuin, "Sid": TicketInfo.wxsid,"Skey":TicketInfo.skey},"SyncKey":Webwxinit.jsonData['SyncKey']}
+                #print(params)
+                syncResult = self.session.post(syncUrl, headers=headers, data=json.JSONEncoder().encode(params),timeout=60)
+                syncResult.encoding = "utf-8"
+                #print("result", syncResult.text)
+                Webwxinit.jsonData['SyncKey'] = syncResult.json()['SyncKey']
 
-            for fu in sendUserList:
-                msgcore.sendmsg(Webwxinit.jsonData['User'], fu, "我二爷又去加班了 别找他")
+                sendUserList = []
+                for msg in syncResult.json()['AddMsgList']:
 
-            time.sleep(5)
+                    if msg['FromUserName'] == Webwxinit.jsonData['User']['UserName']:
+                        if msg['Content'] == "#autoreply=true#":
+                            SyncCheckThread.autoReply = True
+                        elif msg['Content'] == "#autoreply=false#":
+                            SyncCheckThread.autoReply = False
+                        continue
+                    if msg['ToUserName'] != Webwxinit.jsonData['User']['UserName']:
+                        continue
+
+                    if msg['MsgType'] != 1 and msg['MsgType'] != 34:
+                         continue
+
+                    fromUser = msgcore.finduserByUsername(msg['FromUserName'])
+
+                    if fromUser is None or "isChat" in fromUser.keys():
+                        continue
+
+                    print("receive from",fromUser['NickName']," Content:",msg['Content'])
+                    sendUserList.append(fromUser)
+                    self.appenduser(sendUserList,fromUser)
+
+                #是否回复
+                if not SyncCheckThread.autoReply:
+                    continue
+
+                for fu in sendUserList:
+                    msgcore.sendmsg(Webwxinit.jsonData['User'], fu, "我二爷又去加班了 别找他")
+
+                time.sleep(5)
+            except Exception as e:
+                print("ERROR ",e)
 
         print("已在其他地方登录。断开连接...")
+        sys.exit(0)
 
     def appenduser(self,userList,user):
         for item in userList:
@@ -141,7 +163,7 @@ class MsgCore:
         print(params)
         sendResult = self.session.post(sendUrl, headers=headers, data=json.dumps(params,ensure_ascii=False).encode("utf-8"),timeout=60)
         sendResult.encoding = "utf-8"
-        print("result", sendResult.text)
+        #print("result", sendResult.text)
 
     def finduserByUsername(self,username):
         if Webwxinit.jsonData['User']['UserName'] == username:
@@ -194,6 +216,7 @@ class CheckScanThread(threading.Thread):
         print("认证成功,获取用户数据")
         dothing.webwxinit()
         dothing.getConcat()
+        dothing.getChatSet()
 
 class TicketInfo:
     skey = None
@@ -238,7 +261,6 @@ class Dothing:
     def webwxinit(self):
         url = "https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxinit?r=1860846903&pass_ticket="+TicketInfo.pass_ticket
         print("POST request",url)
-
         headers = {"Content-type": "application/json;charset=UTF-8"}
         headers.update(self.headers)
         params = {"BaseRequest":{"Uin":TicketInfo.wxuin,"Sid":TicketInfo.wxsid}}
@@ -246,8 +268,33 @@ class Dothing:
         r = self.session.post(url, headers=headers,data = json.JSONEncoder().encode(params))
         r.encoding = "utf-8"
         Webwxinit.jsonData = r.json()
-        print("result",r.text)
+        #print("result",r.text)
 
+    def getChatSet(self):
+        url = "https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxbatchgetcontact?type=ex&r=1471759169102"
+        print("POST request", url)
+        headers = {"Content-type": "application/json;charset=UTF-8"}
+        headers.update(self.headers)
+        params = {"BaseRequest": {"Uin": TicketInfo.wxuin, "Sid": TicketInfo.wxsid,"Skey":TicketInfo.skey}}
+        chatSet = []
+        for item in Webwxinit.jsonData['ChatSet'].split(","):
+            if item.find("@") == -1:
+                continue
+            chatSet.append({"UserName":item})
+        params['List'] = chatSet
+        params['Count'] = len(chatSet)
+        print(params)
+        if len(chatSet) == 0:
+            return
+        r = self.session.post(url, headers=headers, data=json.JSONEncoder().encode(params))
+        r.encoding = "utf-8"
+
+        data = r.json()['ContactList']
+        for item in data:
+            item['isChat'] = "1"
+
+        Concat.jsonData['MemberList'].extend(data)
+        #print("result", r.text)
 
     def getConcat(self):
         url ="https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxgetcontact?r=1471228115491&seq=0&skey="+TicketInfo.skey+"&pass_ticket="+TicketInfo.pass_ticket
@@ -256,7 +303,7 @@ class Dothing:
         r.encoding = "utf-8"
         Concat.jsonData = r.json()
         #print(r.json()['MemberList'][0]['NickName'])
-        print(r.text)
+        #print(r.text)
 
     # def webwxbatchgetcontact(self):
     #     url = "https://wx2.qq.com/cgi-bin/mmwebwx-bin/webwxbatchgetcontact?type=ex&r=1471693769173"
@@ -327,19 +374,10 @@ def start():
     print("start...")
     check.join()
     print("SyncCheckThread ..")
-
+    # msgcore = MsgCore(session)
+    # print(msgcore.finduserByNickname("国盛天丰"))
     TimerSendMsg(session).start()
-
-    while True:
-        try:
-            sct = SyncCheckThread(session)
-            sct.start()
-            sct.join()
-        except Exception as e:
-            print(e)
-
-
-
+    SyncCheckThread(session).start()
 
 
 
