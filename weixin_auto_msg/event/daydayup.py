@@ -9,6 +9,7 @@ import shutil
 import time
 from datetime import datetime, timedelta
 import sys
+import re
 
 
 class TimerSendMsg(threading.Thread):
@@ -58,7 +59,7 @@ class SyncCheckThread(threading.Thread):
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.110 Safari/537.36"}
     session = None
-    autoReply = True
+    autoReply = False
     def __init__(self, session):
         threading.Thread.__init__(self)
         self.session = session
@@ -103,7 +104,11 @@ class SyncCheckThread(threading.Thread):
                             SyncCheckThread.autoReply = True
                         elif msg['Content'] == "#autoreply=false#":
                             SyncCheckThread.autoReply = False
+                        elif re.match("^@all.*", msg['Content']):
+                            msg = msg['Content'].replace("@all", "", 1)
+                            msgcore.send_all(msg);
                         continue
+
                     if msg['ToUserName'] != Webwxinit.jsonData['User']['UserName']:
                         continue
 
@@ -124,7 +129,7 @@ class SyncCheckThread(threading.Thread):
                     continue
 
                 for fu in sendUserList:
-                    msgcore.sendmsg(Webwxinit.jsonData['User'], fu, "我二爷又去加班了 别找他")
+                    msgcore.sendmsg(Webwxinit.jsonData['User'], "信息无法解析 Unkonw Exception")
 
                 time.sleep(5)
             except Exception as e:
@@ -164,6 +169,22 @@ class MsgCore:
         sendResult = self.session.post(sendUrl, headers=headers, data=json.dumps(params,ensure_ascii=False).encode("utf-8"),timeout=60)
         sendResult.encoding = "utf-8"
         #print("result", sendResult.text)
+
+    def send_all(self,msg):
+        _vmsg = msg
+        for item in Concat.jsonData['MemberList']:
+            if "isChat" in item.keys():
+                continue
+
+            if re.search("@name", msg):
+                name = ''
+                if item['RemarkName']:
+                    name = item['RemarkName']
+                elif item['NickName']:
+                    name = item['NickName']
+                _vmsg = msg.replace("@name",name,1)
+            self.sendmsg(Webwxinit.jsonData['User']['UserName'],item,_vmsg)
+
 
     def finduserByUsername(self,username):
         if Webwxinit.jsonData['User']['UserName'] == username:
@@ -342,7 +363,7 @@ class QRCode:
         url = "https://login.wx2.qq.com/qrcode/"+uuid
         print("GET request :", url)
         r = self.session.get(url,headers = self.headers,stream = True)
-        path = "/qcode.jpg"
+        path = "/home/freedom/qcode.jpg"
         with open(path,'wb') as f:
             r.raw.decode_content = True
             shutil.copyfileobj(r.raw,f)
